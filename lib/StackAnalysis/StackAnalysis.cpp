@@ -39,6 +39,7 @@
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
+#include "revng/ABIAnalyses/ABIAnalysis.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
@@ -374,6 +375,9 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
   Value *RA = nullptr;
   const auto *PCH = GCBI->programCounterHandler();
   Function *OutFunc = createDisposableFunction(Entry);
+
+  // Retrieve results of the ABI analyses
+  ABIAnalyses::analyzeOutlinedFunction(OutFunc, *GCBI, PreHookMarker);
 
   // Identify the callee-saved registers and tell if a function is jumping
   // to the return address. To achieve this, we craft the IR by loading the PC,

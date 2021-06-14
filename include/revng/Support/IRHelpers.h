@@ -1146,3 +1146,9 @@ inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {
     }
   }
 }
+
+template<typename T>
+static llvm::cl::opt<T> *
+getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
+  return static_cast<llvm::cl::opt<T> *>(Options[Name]);
+}

@@ -39,7 +39,6 @@
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
-#include "revng/ABIAnalyses/ABIAnalysis.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
@@ -368,17 +367,16 @@ static std::optional<uint64_t> electFSO(const auto &MaybeReturns) {
 
 template<class FunctionOracle>
 FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
-  const std::vector<llvm::GlobalVariable *> &ABIRegs,
+  const std::vector<llvm::GlobalVariable *> &ABIRegisters,
   llvm::BasicBlock *Entry) {
   using namespace llvm;
-  using namespace ABIAnalyses;
 
   Value *RA = nullptr;
   const auto *PCH = GCBI->programCounterHandler();
   Function *OutFunc = createDisposableFunction(Entry);
 
   // Retrieve results of the ABI analyses
-  ABIAnalysesResults
+  ABIAnalyses::ABIAnalysesResults
     ABIResults = ABIAnalyses::analyzeOutlinedFunction(OutFunc,
                                                       *GCBI,
                                                       PreHookMarker);
@@ -443,7 +441,7 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
   SmallVector<Value *, 16> CSVI;
   Type *IsRetTy = Type::getInt128Ty(Context);
   SmallVector<Type *, 16> ArgTypes = { IsRetTy, IntTy, IntTy };
-  for (auto *CSR : ABIRegs) {
+  for (auto *CSR : ABIRegisters) {
     auto *V = Builder.CreateLoad(CSR);
     CSVI.emplace_back(V);
     ArgTypes.emplace_back(IntTy);
@@ -472,7 +470,7 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
       auto *PCE = PCH->composeIntegerPC(Builder);
 
       SmallVector<Value *, 16> CSVE;
-      for (auto *CSR : ABIRegs) {
+      for (auto *CSR : ABIRegisters) {
         auto *V = Builder.CreateLoad(CSR);
         CSVE.emplace_back(V);
       }
@@ -593,7 +591,7 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
   // Restore value back.
   getOption<unsigned>(Options, "memssa-check-limit")->setInitialValue(100);
 
-  FunctionSummary FunctionInfo = milkResults(ABIRegs, OutFunc);
+  FunctionSummary FunctionInfo = milkResults(ABIRegisters, ABIResults, OutFunc);
 
   // Is the disposable function a FakeFunction? If so, return a
   // copy of the unoptimized disposable function.
@@ -608,14 +606,16 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
 
 template<class FunctionOracle>
 FunctionSummary CFEPAnalyzer<FunctionOracle>::milkResults(
-  const std::vector<llvm::GlobalVariable *> &ABIRegs,
+  const std::vector<llvm::GlobalVariable *> &ABIRegisters,
+  ABIAnalyses::ABIAnalysesResults &ABIResults,
   llvm::Function *F) {
   using namespace llvm;
 
   SmallVector<std::pair<CallInst *, uint64_t>, 4> MaybeReturns;
   SmallSet<std::pair<CallInst *, FunctionEdgeTypeValue>, 4> Result;
   std::set<GlobalVariable *> CalleeSavedRegs;
-  std::set<GlobalVariable *> ClobberedRegs(ABIRegs.begin(), ABIRegs.end());
+  std::set<GlobalVariable *> ClobberedRegs(ABIRegisters.begin(),
+                                           ABIRegisters.end());
 
   for (CallBase *Call : callers(IndirectBranchInfoMarker)) {
     auto *CI = cast<CallInst>(Call);
@@ -645,7 +645,7 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::milkResults(
         for (unsigned Idx = 3; Idx < NumArgs; ++Idx) {
           if (isa<ConstantInt>(CI->getArgOperand(Idx))) {
             if (cast<ConstantInt>(CI->getArgOperand(Idx))->getZExtValue() == 0)
-              CalleeSavedRegs.insert(ABIRegs[Idx - 3]);
+              CalleeSavedRegs.insert(ABIRegisters[Idx - 3]);
           }
         }
       }
@@ -692,6 +692,24 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::milkResults(
   std::erase_if(ClobberedRegs, [&](const auto &E) {
     return CalleeSavedRegs.find(E) != CalleeSavedRegs.end();
   });
+
+  // Union between callee-saved registers and SP.
+  std::set<GlobalVariable *> CSAndSPRegs = { CalleeSavedRegs };
+  CSAndSPRegs.insert(GCBI->spReg());
+
+  // Refine ABI analyses results.
+  for (const auto &Reg : CSAndSPRegs) {
+    if (ABIResults.Arguments.count(Reg) != 0)
+      ABIResults.Arguments[Reg] = model::RegisterState::Values::No;
+  }
+
+  for (const auto &[K, V] : ABIResults.CallSites) {
+    for (auto &Reg : CSAndSPRegs) {
+      if (ABIResults.Arguments.count(Reg) != 0)
+        ABIResults.CallSites[K]
+          .Arguments[Reg] = model::RegisterState::Values::No;
+    }
+  }
 
   return FunctionSummary(Type, ClobberedRegs, Result, WinFSO, nullptr);
 }

@@ -15,6 +15,7 @@
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/ABIAnalyses/ABIAnalysis.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -202,8 +203,9 @@ private:
   llvm::Function *createDisposableFunction(llvm::BasicBlock *BB);
   llvm::BasicBlock *integrateFunctionCallee(llvm::BasicBlock *BB);
   void throwDisposableFunction(llvm::Function *F);
-  FunctionSummary
-  milkResults(const std::vector<llvm::GlobalVariable *> &, llvm::Function *F);
+  FunctionSummary milkResults(const std::vector<llvm::GlobalVariable *> &,
+                              ABIAnalyses::ABIAnalysesResults &,
+                              llvm::Function *F);
 };
 
 } // namespace StackAnalysis

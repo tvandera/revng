@@ -371,13 +371,17 @@ FunctionSummary CFEPAnalyzer<FunctionOracle>::analyze(
   const std::vector<llvm::GlobalVariable *> &ABIRegs,
   llvm::BasicBlock *Entry) {
   using namespace llvm;
+  using namespace ABIAnalyses;
 
   Value *RA = nullptr;
   const auto *PCH = GCBI->programCounterHandler();
   Function *OutFunc = createDisposableFunction(Entry);
 
   // Retrieve results of the ABI analyses
-  ABIAnalyses::analyzeOutlinedFunction(OutFunc, *GCBI, PreHookMarker);
+  ABIAnalysesResults
+    ABIResults = ABIAnalyses::analyzeOutlinedFunction(OutFunc,
+                                                      *GCBI,
+                                                      PreHookMarker);
 
   // Identify the callee-saved registers and tell if a function is jumping
   // to the return address. To achieve this, we craft the IR by loading the PC,

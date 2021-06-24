@@ -53,6 +53,7 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
   // clang-format on
 };
 
+// TODO: InitialValue should be Bottom, it should not be passed in
 /// Compute the maximum fixed points of an instance of monotone framework
 /// GT an instance of llvm::GraphTraits that tells us how to visit the graph
 /// LGT a graph type that tells us how to visit the subgraph

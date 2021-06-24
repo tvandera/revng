@@ -67,48 +67,6 @@ public:
   getRegistersRead(const llvm::Instruction *) const;
 };
 
-template<typename LatticeElementMap, typename CoreLattice, typename KeyT>
-typename CoreLattice::LatticeElement
-getOrDefault(const LatticeElementMap &S, const KeyT &K) {
-  auto V = S.find(K);
-  if (V != S.end()) {
-    return S.lookup(K);
-  }
-  return CoreLattice::DefaultLatticeElement;
-}
-
-template<typename LatticeElementMap, typename CoreLattice>
-LatticeElementMap
-combineValues(const LatticeElementMap &LHS, const LatticeElementMap &RHS) {
-
-  LatticeElementMap New = LHS;
-  for (const auto &[Reg, S] : RHS) {
-    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(New, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
-    New[Reg] = CoreLattice::combineValues(LHSValue, RHSValue);
-  }
-  return New;
-}
-
-template<typename LatticeElementMap, typename CoreLattice>
-bool isLessOrEqual(const LatticeElementMap &LHS, const LatticeElementMap &RHS) {
-  for (auto &[Reg, S] : LHS) {
-    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(LHS, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
-    if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
-      return false;
-    }
-  }
-  for (auto &[Reg, S] : RHS) {
-    auto LHSValue = getOrDefault<LatticeElementMap, CoreLattice>(LHS, Reg);
-    auto RHSValue = getOrDefault<LatticeElementMap, CoreLattice>(RHS, Reg);
-    if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 inline bool ABIAnalysis::isABIRegister(const llvm::Value *V) const {
   using namespace llvm;
   if (auto *G = dyn_cast<GlobalVariable>(V)) {
@@ -203,10 +161,71 @@ ABIAnalysis::getRegistersRead(const llvm::Instruction *I) const {
   return Result;
 }
 
+template<typename CoreLattice>
+struct RegistersMap : public llvm::DenseMap<const llvm::GlobalVariable *,
+                                            typename CoreLattice::LatticeElement> {
+private:
+  using InnerLatticeElement = typename CoreLattice::LatticeElement;
+  using Base = llvm::DenseMap<const llvm::GlobalVariable *,
+                              InnerLatticeElement>;
+
+private:
+  InnerLatticeElement Default {};
+
+public:
+  RegistersMap() : Default {} {}
+  RegistersMap(InnerLatticeElement Default) : Default(Default) {}
+
+public:
+  InnerLatticeElement getOrDefault(const llvm::GlobalVariable *GV) const {
+    auto It = Base::find(GV);
+    if (It == Base::end())
+      return Default;
+    else
+      return It->second;
+  }
+
+public:
+  RegistersMap combine(const RegistersMap &RHS) const {
+    RegistersMap New = *this;
+    for (const auto &[Reg, S] : RHS) {
+      auto LHSValue = New.getOrDefault(Reg);
+      auto RHSValue = RHS.getOrDefault(Reg);
+      New[Reg] = CoreLattice::combineValues(LHSValue, RHSValue);
+    }
+
+    New.Default = CoreLattice::combineValues(New.Default, RHS.Default);
+
+    return New;
+  }
+
+  bool isLessOrEqual(const RegistersMap &RHS) const {
+    const RegistersMap &LHS = *this;
+
+    if (!CoreLattice::isLessOrEqual(LHS.Default, RHS.Default))
+      return false;
+
+    for (auto &[Reg, S] : LHS) {
+      auto LHSValue = LHS.getOrDefault(Reg);
+      auto RHSValue = RHS.getOrDefault(Reg);
+      if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
+        return false;
+      }
+    }
+    for (auto &[Reg, S] : RHS) {
+      auto LHSValue = LHS.getOrDefault(Reg);
+      auto RHSValue = RHS.getOrDefault(Reg);
+      if (!CoreLattice::isLessOrEqual(LHSValue, RHSValue)) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
 template<bool IsForward, typename CoreLattice>
 struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
-  using LatticeElement = llvm::DenseMap<const llvm::GlobalVariable *,
-                                        typename CoreLattice::LatticeElement>;
+  using LatticeElement = RegistersMap<CoreLattice>;
   using Label = const llvm::BasicBlock *;
   using GraphType = std::conditional_t<IsForward,
                                        const llvm::BasicBlock *,
@@ -216,12 +235,12 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
 
   LatticeElement
   combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const {
-    return ABIAnalyses::combineValues<LatticeElement, CoreLattice>(LHS, RHS);
+    return LHS.combine(RHS);
   };
 
   bool
   isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
-    return ABIAnalyses::isLessOrEqual<LatticeElement, CoreLattice>(LHS, RHS);
+    return LHS.isLessOrEqual(RHS);
   };
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
@@ -237,21 +256,21 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
       switch (T) {
       case TheCall: {
         for (auto &Reg : getRegisters()) {
-          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          auto RegState = New.getOrDefault(Reg);
           New[Reg] = CoreLattice::transfer(TheCall, RegState);
         }
         break;
       }
       case Read:
         for (auto &Reg : getRegistersRead(I)) {
-          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          auto RegState = New.getOrDefault(Reg);
           New[Reg] = CoreLattice::transfer(T, RegState);
         }
         break;
       case WeakWrite:
       case Write:
         for (auto &Reg : getRegistersWritten(I)) {
-          auto RegState = getOrDefault<LatticeElement, CoreLattice>(New, Reg);
+          auto RegState = New.getOrDefault(Reg);
           New[Reg] = CoreLattice::transfer(T, RegState);
         }
         break;

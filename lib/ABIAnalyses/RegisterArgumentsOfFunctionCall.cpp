@@ -28,8 +28,8 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<false, CoreLattice>;
 
   MFI Instance{ { getPostCallHook(CallSiteBlock), GCBI } };
-  MFI::LatticeElement InitialValue{};
-  MFI::LatticeElement ExtremalValue{};
+  MFI::LatticeElement InitialValue;
+  MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 
   auto *Start = CallSiteBlock->getUniquePredecessor();
   auto

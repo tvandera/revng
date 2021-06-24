@@ -28,8 +28,8 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<true, CoreLattice>;
 
   MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };
-  MFI::LatticeElement InitialValue{};
-  MFI::LatticeElement ExtremalValue{};
+  MFI::LatticeElement InitialValue;
+  MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
   auto *Start = CallSiteBlock->getUniqueSuccessor();
   auto
     Results = MFP::getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,

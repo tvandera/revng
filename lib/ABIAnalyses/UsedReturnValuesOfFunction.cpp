@@ -27,8 +27,8 @@ analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<false, CoreLattice>;
 
   MFI Instance{ { GCBI } };
-  MFI::LatticeElement InitialValue{};
-  MFI::LatticeElement ExtremalValue{};
+  MFI::LatticeElement InitialValue;
+  MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
   auto Results = MFP::
     getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,
                                                  ReturnBlock,

@@ -170,8 +170,8 @@ def process_graph(path, call_arcs):
   assert monotone_framework.check_transfer_functions(tf_graph, reachability, transfer_functions)
   
   tf_names = sorted([edge_data["label"] for _, _, edge_data in tf_graph.edges(data=True)])
-  
-  default_lattice_element = [v
+
+  extremal_lattice_element = [v
             for v, v_data in lattice.nodes(data=True)
             if "peripheries" in v_data][0]
 
@@ -179,7 +179,7 @@ def process_graph(path, call_arcs):
     'transfer_function_names': tf_names,
     'lattice_name': input_graph.name,
     'lattice_elements_enums': gen_lattice_element_enum(lattice),
-    'default_lattice_element': default_lattice_element,
+    'extremal_lattice_element': extremal_lattice_element,
     'transfer_function_enums': gen_transfer_function_enum(tf_graph),
     'is_less_or_equal_definition': gen_is_less_or_equal(lattice, reachability),
     'combine_values_definition': gen_combine_values(lattice, reachability),
@@ -198,7 +198,7 @@ def main():
                       you can use the keywords:
                       - %LatticeName% the name of the lattice extracted from the graph name
                       - %LatticeElement% the C++ enum definition for the elements in the lattice `enum LatticeElement {...}`
-                      - %DefaultLatticeElement% the name for the default value for a lattice element 
+                      - %ExtremalLatticeElement% the name for the default value for a lattice element
                       - %TransferFunction% the C++ enum definition for the possible transfer functions `enum TransferFunction {...}`
                       - %isLessOrEqual% the C++ function with signature `bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS)`
                       - %combineValues% the C++ function with signature `bool combineValues(const LatticeElement &LHS, const LatticeElement &RHS)`
@@ -223,7 +223,7 @@ def main():
     all_transfer_functions |= set(generated_code['transfer_function_names'])
   monotone_framework.out(template.replace('%LatticeName%', generated_code['lattice_name'])
                                  .replace('%LatticeElement%', generated_code['lattice_elements_enums'])
-                                 .replace('%DefaultLatticeElement%', generated_code['default_lattice_element'])
+                                 .replace('%ExtremalLatticeElement%', generated_code['extremal_lattice_element'])
                                  .replace('%TransferFunction%', generated_code['transfer_function_enums'])
                                  .replace('%isLessOrEqual%', generated_code['is_less_or_equal_definition'])
                                  .replace('%combineValues%', generated_code['combine_values_definition'])

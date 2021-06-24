@@ -29,7 +29,7 @@ struct CoreLattice {
 
 %LatticeElement%
 
-static const LatticeElement DefaultLatticeElement = %DefaultLatticeElement%;
+static const LatticeElement ExtremalLatticeElement = %ExtremalLatticeElement%;
 
 using TransferFunction = ABIAnalyses::TransferKind;
 

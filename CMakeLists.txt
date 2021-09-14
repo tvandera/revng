@@ -56,42 +56,46 @@ set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
 make_directory("${CMAKE_BINARY_DIR}/share/revng/")
 
-foreach(ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
-  set(OUTPUT "early-linked-${ARCH}.ll")
-  add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
-    COMMAND "${CLANG}"
-    ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
-         -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-         -S -emit-llvm -g
-         -DTARGET_${ARCH}
-         -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
-         -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
-  add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
-  add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
-  install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-    DESTINATION share/revng)
-
-  # Enable the support for C exceptions to avoid optimizations that break
-  # exception support when linking a module with isolated functions
-  foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
-    set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
+foreach(SOURCE_ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
+  foreach(TARGET_ARCH x86_64 riscv64)
+    set(OUTPUT "early-linked-${SOURCE_ARCH}-${TARGET_ARCH}.ll")
     add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
       COMMAND "${CLANG}"
-      ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
-           -O2
-           -fexceptions
-           -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-           -S -emit-llvm -g
-           -DTARGET_${ARCH}
-           -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
-           -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
-           ${SUPPORT_MODULES_CONFIG_${CONFIG}})
-    add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
-    add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
+      ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
+          -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+          -S -emit-llvm -g
+          -DTARGET_${SOURCE_ARCH}
+          --target=${TARGET_ARCH}
+          -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+          -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
+    add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+    add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
     install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DESTINATION share/revng)
+
+    # Enable the support for C exceptions to avoid optimizations that break
+    # exception support when linking a module with isolated functions
+    foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
+      set(OUTPUT "support-${SOURCE_ARCH}-${TARGET_ARCH}-${CONFIG}.ll")
+      add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+        COMMAND "${CLANG}"
+        ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
+            -O2
+            -fexceptions
+            -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+            -S -emit-llvm -g
+            -DTARGET_${SOURCE_ARCH}
+            --target=${TARGET_ARCH}
+            -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+            -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
+            ${SUPPORT_MODULES_CONFIG_${CONFIG}})
+      add_custom_target("support-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+      add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
+      install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+        DESTINATION share/revng)
+    endforeach()
   endforeach()
 endforeach()
 

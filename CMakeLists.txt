@@ -66,7 +66,7 @@ foreach(SOURCE_ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
           -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
           -S -emit-llvm -g
           -DTARGET_${SOURCE_ARCH}
-          --target=${TARGET_ARCH}
+          --target=${TARGET_ARCH}-unknown-linux-musl
           -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
           -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
     add_custom_target("early-linked-module-${OUTPUT}" ALL DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
@@ -87,7 +87,7 @@ foreach(SOURCE_ARCH aarch64 arm mips mipsel x86_64 i386 s390x)
             -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
             -S -emit-llvm -g
             -DTARGET_${SOURCE_ARCH}
-            --target=${TARGET_ARCH}
+            --target=${TARGET_ARCH}-unknown-linux-musl
             -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
             -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
             ${SUPPORT_MODULES_CONFIG_${CONFIG}})

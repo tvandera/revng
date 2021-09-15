@@ -230,7 +230,7 @@ def get_architecture(path):
   elif arch_id == "01b700":
     return "aarch64"
   else:
-    log_error("Unknown architecture ID: {}".format(arch_id))
+    log_error("Unknown source_architecture ID: {}".format(arch_id))
     assert False
 
 def find_file(name, paths):
@@ -356,16 +356,16 @@ def run_translate(args, post_dash_dash):
   # Find a compiler (used for linking)
   compiler = get_command(os.environ.get("CXX", "c++"))
 
-  # Extracted the architecture name
-  architecture = get_architecture(input)
+  # Extracted the source architecture name
+  source_architecture = get_architecture(input)
 
-  if is_dynamic(input) and architecture != "x86_64":
+  if is_dynamic(input) and source_architecture != "x86_64":
     log_error("""
 Currently, rev.ng can translate dynamically linked binaries only for x86-64.
 The provided program is dynamically linked but targets {}.
 Try with an input program that is compiled for x86-64, or statically linked.
 If you're just interested in lifting to LLVM IR, simply use `revng lift`.
-    """.format(architecture).strip())
+    """.format(source_architecture).strip())
     return -1
 
   # Check if tracing is enabled
@@ -374,8 +374,10 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   else:
     config = "normal"
 
+  target_architecture = "x86_64"
+
   # Build the name of the support.ll file
-  support_name = "support-{}-{}.ll".format(architecture, config)
+  support_name = "support-{}-{}-{}.ll".format(source_architecture, target_architecture, config)
 
   # Find support.ll
   global script_path

@@ -374,7 +374,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
   else:
     config = "normal"
 
-  target_architecture = "x86_64"
+  target_architecture = args.target
 
   # Build the name of the support.ll file
   support_name = "support-{}-{}-{}.ll".format(source_architecture, target_architecture, config)
@@ -397,7 +397,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
       lift_options += ["--base", args.base]
 
     run([get_command("revng-lift"),
-         "-g", "ll"]
+         "-g", "ll", "--target", target_architecture]
         + lift_options
         + [relative(input), relative(output)])
 
@@ -528,6 +528,10 @@ def main():
   parser.add_argument("--verbose",
                       action="store_true",
                       help="Log all executed commands.")
+  parser.add_argument("--target",
+                      metavar="ARCH",
+                      default="x86_64",
+                      help="Target architecture")
   parser.add_argument("--perf",
                       action="store_true",
                       help="Run programs under perf (for use with hotspot).")

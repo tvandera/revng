@@ -69,6 +69,14 @@ alias A2("B", DESCRIPTION, aliasopt(BaseAddress), cat(MainCategory));
 opt<string> InputPath(Positional, Required, desc("<input path>"));
 opt<string> OutputPath(Positional, Required, desc("<output path>"));
 
+#define DESCRIPTION desc("target architecture name")
+opt<string> TargetArchName("target",
+                           DESCRIPTION,
+                           value_desc("arch"),
+                           cat(MainCategory),
+                           init("x86_64"));
+#undef DESCRIPTION
+
 } // namespace
 
 static std::string LibTinycodePath;
@@ -87,31 +95,32 @@ using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
                                                  &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
-static void findFiles(const char *Architecture) {
+static void findFiles(const char *SourceArchitecture, const char *TargetArchitecture) {
   using namespace revng;
 
-  std::string ArchName(Architecture);
+  std::string SourceArchName(SourceArchitecture);
+  std::string TargetArchName(TargetArchitecture);
 
-  std::string LibtinycodeName = "/lib/libtinycode-" + ArchName + ".so";
+  std::string LibtinycodeName = "/lib/libtinycode-" + SourceArchName + ".so";
   auto OptionalLibtinycode = ResourceFinder.findFile(LibtinycodeName);
   revng_assert(OptionalLibtinycode.has_value(), "Cannot find libtinycode");
   LibTinycodePath = OptionalLibtinycode.value();
 
-  std::string LibHelpersName = "/lib/libtinycode-helpers-" + ArchName + ".bc";
+  std::string LibHelpersName = "/lib/libtinycode-helpers-" + SourceArchName + "-" + TargetArchName + ".bc";
   auto OptionalHelpers = ResourceFinder.findFile(LibHelpersName);
-  revng_assert(OptionalHelpers.has_value(), "Cannot find tinycode helpers");
+  revng_assert(OptionalHelpers.has_value(), (std::string("Cannot find tinycode helpers (") + LibHelpersName + ")").c_str());
   LibHelpersPath = OptionalHelpers.value();
 
-  std::string EarlyLinkedName = "/share/revng/early-linked-" + ArchName + ".ll";
+  std::string EarlyLinkedName = "/share/revng/early-linked-" + SourceArchName + "-" + TargetArchName + ".ll";
   auto OptionalEarlyLinked = ResourceFinder.findFile(EarlyLinkedName);
   revng_assert(OptionalEarlyLinked.has_value(), "Cannot find early-linked.ll");
   EarlyLinkedPath = OptionalEarlyLinked.value();
 }
 
-/// Given an architecture name, loads the appropriate version of the PTC
+/// Given an SourceArchitecture name, loads the appropriate version of the PTC
 /// library, and initializes the PTC interface.
 ///
-/// \param Architecture the name of the architecture, e.g. "arm".
+/// \param SourceArchitecture the name of the SourceArchitecture, e.g. "arm".
 /// \param PTCLibrary a reference to the library handler.
 ///
 /// \return EXIT_SUCCESS if the library has been successfully loaded.
@@ -160,7 +169,7 @@ int main(int argc, const char *argv[]) {
 
   BinaryFile TheBinary(InputPath, BaseAddress);
 
-  findFiles(TheBinary.architecture().name());
+  findFiles(TheBinary.architecture().name(), std::string(TargetArchName).c_str());
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
@@ -168,8 +177,8 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Translate everything
-  Architecture TargetArchitecture;
   llvm::LLVMContext Context;
+  Architecture TargetArchitecture;
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
                           Context,

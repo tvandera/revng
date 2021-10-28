@@ -13,6 +13,9 @@ install(FILES cmake/revngConfig.cmake cmake/Common.cmake
 # This has to be first to get highest priority
 include_directories(include/)
 
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+
 # Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
